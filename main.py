@@ -70,7 +70,7 @@ def get_tokens(stmt):
                     peek = False
                     continue
             tokens.append(Token("NUM", integer))
-        if char in ["+", "-", "*", "/", "^"]:
+        if char in ["+", "-", "*", "/", "^", "(", ")"]:
             tokens.append(Token(char, char))
     tokens.append(Token("EOF", None))
     return tokens
@@ -96,8 +96,8 @@ class AST:
         exp = PrefixExp()
         exp.token = self.token
         exp.operator = self.token.val
-        self.token = self.tokens[self.token_ptr + 1]
         self.token_ptr += 1
+        self.token = self.tokens[self.token_ptr]
         exp.right = self.parse_expression(Precedence.PREFIX)
         return exp
 
@@ -107,8 +107,8 @@ class AST:
         exp.operator = self.token.val
         exp.left = left
         precedence = self.precedences.get(self.token.type_, Precedence.LOWEST)
-        self.token = self.tokens[self.token_ptr + 1]
         self.token_ptr += 1
+        self.token = self.tokens[self.token_ptr]
         exp.right = self.parse_expression(precedence)
         return exp
 
@@ -117,6 +117,15 @@ class AST:
         exp.token = self.token
         exp.val = float(self.token.val)
         return exp
+    
+    def parse_paren(self):
+        self.token_ptr += 1
+        self.token = self.tokens[self.token_ptr]
+        exp = self.parse_expression(Precedence.LOWEST)
+
+        if not self.expectPeek(")"):
+            return None
+        return exp 
 
     def parse_expression(self, precedence):
         prefix_func = self.prefix_funcs.get(self.token.type_, None)
@@ -136,8 +145,8 @@ class AST:
             infix_func = self.infix_funcs.get(self.peeked_token.type_, None)
             if infix_func is None:
                 return left_exp
-            self.token = self.tokens[self.token_ptr + 1]
             self.token_ptr += 1
+            self.token = self.tokens[self.token_ptr]
             left_exp = infix_func(left_exp)
         return left_exp
 
@@ -145,6 +154,7 @@ class AST:
         prefix_funcs = {
             "-": self.parse_prefix_exp,
             "NUM": self.parse_num,
+            "(": self.parse_paren,
         }
         infix_funcs = {
             "+": self.parse_infix_exp,
@@ -155,11 +165,19 @@ class AST:
         }
         return prefix_funcs, infix_funcs
 
+    def expectPeek(self, token_type):
+        if self.peeked_token.type_ == token_type:
+            self.token_ptr += 1
+            self.token = self.tokens[self.token_ptr]
+            return True
+        else:
+            return False
+
+
     def __str__(self):
         return f"{self.exp}"
 
-
 if __name__ == "__main__":
-    stmt = "1 + 2 - 3 * 2 ^ - 3 + 8"
+    stmt = "(1 + 2 - 3 * 2) ^ (- 3 + 8)"
     ast = AST(stmt)
     print(ast)
